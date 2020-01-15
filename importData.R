@@ -75,7 +75,7 @@ storage_multidownload(cont,src = "ТоварныйКлассификатор*.cs
 ##################################
 ## read data from storage account
 ##################################
-## История заказов
+## История заказов (заказы без достаки, чистая потребность клиента)
 orderSales <- list.files(path = "./ИсторияЗаказов/"
                                   ,pattern = "*.csv"
                                   ,full.names = T) %>%
@@ -88,6 +88,43 @@ orderSales$orderRub <- as.numeric(sub(",", ".", orderSales$orderRub, fixed = TRU
 orderSales$order <- as.numeric(sub(",", ".", orderSales$order, fixed = TRUE))
 orderSales[is.na(orderSales)] <- 0
 
+## товарная иерархия
+prod <- list.files(path = "./ГПСИерархией/"
+                   ,pattern = "*.csv"
+                   ,full.names = T) %>%
+  map_df(~read_csv2(., col_types = cols(.default = "c")))
+
+names(prod) <- c("level1","level1Id","level2","level2Id","level3","level3Id"
+                 ,"level4","level4Id","level5","level5Id","level6","level6Id"
+                 ,"level7","level7Id","level8","level8Id","level9","level9Id"
+                 ,"skuId","skuName","group","groupId","model","modelId")
+prod <- data.table(prod)
+
+## спецификация
+specification <- list.files(path = "./ИсторияСпецификаций/"
+                            ,pattern = "*.csv"
+                            ,full.names = T) %>%
+  map_df(~read_csv2(., col_types = cols(.default = "c")))
+
+names(specification) <- c("date","skuId","specificationId","materialId","qnt")
+specification$date <- dmy_hms(specification$date)
+specification$qnt <- as.numeric(sub(",", ".", specification$qnt, fixed = TRUE))
+specification <- data.table(specification)
+
+
+## сырье иерархия
+rowProd <- list.files(path = "./СырьеСИерархией/"
+                   ,pattern = "*.csv"
+                   ,full.names = T) %>%
+  map_df(~read_csv2(., col_types = cols(.default = "c")))
+
+names(rowProd) <- c("level1","level1Id","level2","level2Id","level3","level3Id"
+                 ,"level4","level4Id","level5","level5Id","level6","level6Id"
+                 ,"level7","level7Id","level8","level8Id","level9","level9Id"
+                 ,"level10","level10Id","level11","level11Id","level12","level12Id"
+                 ,"level13","level13Id"
+                 ,"materialId","skuName")
+rowProd <- data.table(rowProd)
 
 ##sales <- list.files(path = "./ИсторияОтгрузок/"
 ##                         ,pattern = "*.csv"
@@ -107,27 +144,7 @@ orderSales[is.na(orderSales)] <- 0
 ##sales$salesRub <- as.numeric(sub(",", ".", sales$salesRub, fixed = TRUE))
 ##sales$sales <- as.numeric(sub(",", ".", sales$sales, fixed = TRUE))
 
-## товарная иерархия
-prod <- list.files(path = "./ГПСИерархией/"
-                    ,pattern = "*.csv"
-                    ,full.names = T) %>%
-  map_df(~read_csv2(., col_types = cols(.default = "c")))
 
-names(prod) <- c("level1","level1Id","level2","level2Id","level3","level3Id"
-                 ,"level4","level4Id","level5","level5Id","level6","level6Id"
-                 ,"level7","level7Id","level8","level8Id","level9","level9Id"
-                 ,"skuId","skuName","group","groupId","model","modelId")
-prod <- data.table(prod)
-## спецификация
-specification <- list.files(path = "./ИсторияСпецификаций/"
-                    ,pattern = "*.csv"
-                    ,full.names = T) %>%
-  map_df(~read_csv2(., col_types = cols(.default = "c")))
-
-names(specification) <- c("date","skuId","specificationId","materialId","qnt")
-specification$date <- dmy_hms(specification$date)
-specification$qnt <- as.numeric(sub(",", ".", specification$qnt, fixed = TRUE))
-specification <- data.table(specification)
 ## Остатки ГП
 stockGP <- list.files(path = "./ОстаткиГП/"
                             ,pattern = "*.csv"
