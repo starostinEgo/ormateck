@@ -7,12 +7,13 @@ library(lubridate)
 library(readr)
 
 
-
+options(datatable.optimize=2L)
 ## create orderSales only prod
 setkey(orderSales,skuId)
 setkey(prod,skuId)
 orderSales <- merge(orderSales,prod[,.(skuId)])
 
+##orderSales <- orderSales[date < "2019-04-01"]
 ## create OrderSales without возвратов
 ## особенность внутренних заказов, что когда пришли их списывают через минус
 orderSales <- orderSales[!(internal == "Да" & order <0)]
@@ -184,14 +185,139 @@ setkey(h,materialId)
 setkey(rowProd,materialId)
 temp <- merge(h,rowProd[,.(materialId,level1,level2,level3,level4,level5)])
 h[,.N,materialId][,.N]
-h[,.N,materialId_04][,.N]
 
-orderSales[internal == "Нет",.(topSales = sum(order)),.(skuId)][order(-topSales)]
+temp <- temp[level3 %in% c("1.5.3 Ткань трикотажная","1.5.5 Лазурит","1.5.2 Ткань жаккардовая"
+                   ,"1.18.1 Листовой ППУ","1.18.2 Рулонный ППУ","1.5.4 Бязь"
+                   ,"1.5.7 Ткань Прочее","Независимые пружинные блоки (EVS)"
+                   ,"Зависимые пружинные блоки (Bonnell)")]
 
-t <- h[internal == "Нет" & orderSkuId == "f92e1832-5448-11e8-8c7b-2c768a5115e1"]
-f <- prod[skuId == "f92e1832-5448-11e8-8c7b-2c768a5115e1"]
-y <- specification[skuId == "f92e1832-5448-11e8-8c7b-2c768a5115e1"]
-t <- h[orderSkuId == "f92e1832-5448-11e8-8c7b-2c768a5115e1"]
-rowProd[materialId == "156e8e4a-3e64-11e9-9800-2c768a5115e1"]
-s <- rowProd[materialId %in% r$materialId]
 temp[,.N,materialId][,.N]
+
+
+## create demand on material
+temp[,order_01:= qnt_01*order]
+temp[,order_02:= qnt_02*order_01]
+temp[,order_03:= qnt_03*order_02]
+temp[,order_04:= qnt_04*order_03]
+temp[,order_05:= qnt_05*order_04]
+
+temp$orderMaterial <- temp$order_05 
+temp$orderMaterial <- ifelse(is.na(temp$orderMaterial),temp$order_04,temp$orderMaterial)
+temp$orderMaterial <- ifelse(is.na(temp$orderMaterial),temp$order_03,temp$orderMaterial)
+temp$orderMaterial <- ifelse(is.na(temp$orderMaterial),temp$order_02,temp$orderMaterial)
+temp$orderMaterial <- ifelse(is.na(temp$orderMaterial),temp$order_01,temp$orderMaterial)
+
+##r <- temp[materialId == "206831a0-63c7-11e2-ad35-ac162d78f2b8"]
+##fwrite(r,"r2.csv")
+#################################
+## aligthment with rowStock
+################################
+rowStock$date <- ymd(rowStock$date)
+rowStock <- rowStock[materialId %in% temp[,.N,materialId]$materialId]
+
+minDate <- min(rowStock$date)
+maxDate <- max(rowStock$date)
+calendar <- data.table(seq(minDate,maxDate,by = "day"))
+names(calendar) <- c("date")
+
+## agrigate rowData to all StoreId
+
+rowStock[order(materialId,storeId,date),("lagDate"):= shift(date,1,NA,"lead"),by = c("materialId","storeId")]
+rowStock$lagDate[is.na(rowStock$lagDate)] <- ymd("2019-12-01")
+rowStock <- rowStock[,.(materialId,storeId,date,lagDate,rowStock,rowReserve)]
+names(rowStock)[3] <- c("startDate")
+names(rowStock)[4] <- c("finishDate")
+
+
+calendarMaterialIdStoreId <- setkey(rowStock[,.N,.(materialId,storeId)
+                                             ][,.(materialId,storeId)
+                                               ][,c(k=1,.SD)],k)[calendar[,c(k=1,.SD)
+                                                                          ],allow.cartesian=TRUE][,k:=NULL]
+
+
+setkey(calendarMaterialIdStoreId,materialId,storeId)
+setkey(rowStock,materialId,storeId)
+
+rowStockP <- merge(calendarMaterialIdStoreId,rowStock,allow.cartesian=TRUE,all.x = T)
+rowStockP <- rowStockP[date >= startDate & date < finishDate]
+rowStockP <- rowStockP[order(materialId,storeId,date)]
+rowStockP[,startDate:= NULL]
+rowStockP[,finishDate:= NULL]
+
+#################################
+## aligthment with stockGP
+################################
+stockGP$date <- ymd(stockGP$date)
+stockGP <- stockGP[skuId %in% orderSales[,.N,skuId]$skuId]
+
+stockGP1 <- stockGP[date < "2018-07-01"]
+stockGP2 <- stockGP[date >= "2018-07-01"]
+
+stockGP <- stockGP1
+###stockGP
+minDate <- min(stockGP$date)
+maxDate <- max(stockGP$date)
+calendar <- data.table(seq(minDate,maxDate,by = "day"))
+names(calendar) <- c("date")
+
+## agrigate rowData to all StoreId
+
+stockGP[order(skuId,storeId,date),("lagDate"):= shift(date,1,NA,"lead"),by = c("skuId","storeId")]
+stockGP$lagDate[is.na(stockGP$lagDate)] <- ymd("2019-12-01")
+stockGP <- stockGP[,.(skuId,storeId,date,lagDate,stockGP,reserveGP)]
+names(stockGP)[3] <- c("startDate")
+names(stockGP)[4] <- c("finishDate")
+
+
+calendarMaterialIdStoreId <- setkey(stockGP[,.N,.(skuId,storeId)
+                                             ][,.(skuId,storeId)
+                                               ][,c(k=1,.SD)],k)[calendar[,c(k=1,.SD)
+                                                                          ],allow.cartesian=TRUE][,k:=NULL]
+
+##rm(calendar,h,orderSales,rowStock,specification)
+
+setkey(calendarMaterialIdStoreId,skuId,storeId)
+setkey(stockGP,skuId,storeId)
+
+stockGPA1 <- merge(calendarMaterialIdStoreId,stockGP,allow.cartesian=TRUE,all.x = T)
+stockGPA1 <- stockGPA1[date >= startDate & date < finishDate]
+stockGPA1 <- stockGPA1[order(skuId,storeId,date)]
+stockGPA1[,startDate:= NULL]
+stockGPA1[,finishDate:= NULL]
+
+
+stockGP <- stockGP2
+###stockGP
+minDate <- min(stockGP$date)
+maxDate <- max(stockGP$date)
+calendar <- data.table(seq(minDate,maxDate,by = "day"))
+names(calendar) <- c("date")
+
+## agrigate rowData to all StoreId
+
+stockGP[order(skuId,storeId,date),("lagDate"):= shift(date,1,NA,"lead"),by = c("skuId","storeId")]
+stockGP$lagDate[is.na(stockGP$lagDate)] <- ymd("2019-12-01")
+stockGP <- stockGP[,.(skuId,storeId,date,lagDate,stockGP,reserveGP)]
+names(stockGP)[3] <- c("startDate")
+names(stockGP)[4] <- c("finishDate")
+
+
+calendarMaterialIdStoreId <- setkey(stockGP[,.N,.(skuId,storeId)
+                                            ][,.(skuId,storeId)
+                                              ][,c(k=1,.SD)],k)[calendar[,c(k=1,.SD)
+                                                                         ],allow.cartesian=TRUE][,k:=NULL]
+
+
+
+setkey(calendarMaterialIdStoreId,skuId,storeId)
+setkey(stockGP,skuId,storeId)
+
+stockGPA2 <- merge(calendarMaterialIdStoreId,stockGP,allow.cartesian=TRUE,all.x = T)
+stockGPA2 <- stockGPA2[date >= startDate & date < finishDate]
+stockGPA2 <- stockGPA2[order(skuId,storeId,date)]
+stockGPA2[,startDate:= NULL]
+stockGPA2[,finishDate:= NULL]
+
+stockGPA <- rbind(stockGPA1,stockGPA2)
+
+
