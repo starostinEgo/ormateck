@@ -1,0 +1,54 @@
+---
+title: "workWithRowData"
+output: html_notebook
+---
+
+загружаем необходимые библиотеки
+и подключаемся к блоб стораджу
+```{r}
+library(AzureRMR)
+library(AzureStor)
+library(tidyverse)
+library(data.table)
+library(lubridate)
+library(readr)
+
+cont <- blob_container("https://korusormatek.blob.core.windows.net/data/",
+                       "juOllrui6HBA1h/ozVlEE6WrQ7sWKvQVqxfZuxciMSh4OMrtZ6qt/PlCx5uGF3ToDtRjxcjN1dFrmAaoqUPRwg==")
+
+```
+
+
+загружаем информацию о чеках 
+и прибераемся в нем
+```{r}
+fileName <- "/data/home/mladmin/Desktop/ormateck/"
+tempFile <- "ИсторияЗаказов"
+if (file.exists(paste0(fileName,tempFile))) {unlink(paste0(fileName,tempFile),recursive = T)}
+storage_multidownload(cont,src = "rowData/order/ИсторияЗаказов*.csv",dest = paste0(fileName,tempFile))
+
+orderSales <- list.files(path = "./ИсторияЗаказов/"
+                         ,pattern = "*.csv"
+                         ,full.names = T) %>%
+  map_df(~fread(.,sep=";",header = T,colClasses = 'character'))
+
+names(orderSales) <- c("idCheck","internal","cardId","skuId"
+                       ,"shopId","storeId","date","orderRub","order")
+orderSales$date <- dmy_hms(orderSales$date)
+orderSales$orderRub <- as.numeric(sub(",", ".", orderSales$orderRub, fixed = TRUE))
+orderSales$order <- as.numeric(sub(",", ".", orderSales$order, fixed = TRUE))
+orderSales[is.na(orderSales)] <- 0
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

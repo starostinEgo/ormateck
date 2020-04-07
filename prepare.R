@@ -20,6 +20,8 @@ orderSales <- orderSales[!(internal == "Да" & order <0)]
 orderSales <- orderSales[,.(order = sum(order),orderRub = sum(orderRub))
                          ,.(idCheck,internal,cardId,skuId,shopId,storeId,date)]
 
+orderSales[date >= "2019-04-01" & date <= "2019-04-30",sum(order)]
+
 ## тут нужно понимать, что делать с внешними заказами при возврате?, по идее материал нужен и под них
 
 ## way 1 without minus если от заказа отказались, то отказались

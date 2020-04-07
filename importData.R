@@ -7,6 +7,7 @@ library(tidyverse)
 library(data.table)
 library(lubridate)
 library(readr)
+
 options(datatable.optimize=2L)
 cont <- blob_container("https://korusormatek.blob.core.windows.net/data/",
                        "juOllrui6HBA1h/ozVlEE6WrQ7sWKvQVqxfZuxciMSh4OMrtZ6qt/PlCx5uGF3ToDtRjxcjN1dFrmAaoqUPRwg==")
@@ -46,12 +47,14 @@ orderSales <- list.files(path = "./data/ИсторияЗаказов/"
   map_df(~fread(.,sep=";",header = T,colClasses = 'character'))
 
 names(orderSales) <- c("idCheck","internal","cardId","skuId"
-                       ,"shopId","storeId","date","orderRub","order")
+                       ,"shopId","storeId","date","orderRub","order","vip")
 orderSales$date <- dmy_hms(orderSales$date)
 orderSales$orderRub <- as.numeric(sub(",", ".", orderSales$orderRub, fixed = TRUE))
 orderSales$order <- as.numeric(sub(",", ".", orderSales$order, fixed = TRUE))
 orderSales[is.na(orderSales)] <- 0
 
+orderSales <- orderSales[vip != "Да"]
+orderSales[,vip:=NULL]
 ## спецификация
 specification <- list.files(path = "./data/ИсторияСпецификаций/"
                             ,pattern = "*.csv"

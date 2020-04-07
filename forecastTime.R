@@ -53,6 +53,11 @@ data$orderMaterial <- ifelse(is.na(data$orderMaterial),data$order_04,data$orderM
 data$orderMaterial <- ifelse(is.na(data$orderMaterial),data$order_03,data$orderMaterial)
 data$orderMaterial <- ifelse(is.na(data$orderMaterial),data$order_02,data$orderMaterial)
 data$orderMaterial <- ifelse(is.na(data$orderMaterial),data$order_01,data$orderMaterial)
+
+
+## save information about order - material
+fwrite(data[date >= "2019-04-01",.(order = sum(newOrder)),.(month(date),materialId,orderSkuId,storeId)
+            ][,.(order = sum(order)),.(month,materialId)],"orderMaterial.csv")
 #######################
 ## alignment time
 ######################
@@ -159,7 +164,9 @@ fwrite(itogo,"itogo.csv")
 ##############################
 ## выравниваем временной ряд (для недели)
 ##############################
-h <- gData2[materialId == "c40f9740-94ac-11e3-8233-2c768a5115e0"]
+fwrite(gData2,"gdata2.csv")
+h <- gData[materialId == "2f816b99-5e7b-11e8-8c7b-2c768a5115e1"]
+h <- gData2[materialId == "2f816b99-5e7b-11e8-8c7b-2c768a5115e1"]
 ggplot(h,aes(x = firstDataWeeks,y = sales)) + 
   geom_point() + 
   geom_line() +
